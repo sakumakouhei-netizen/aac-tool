@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>AAC 意思疎通ツール</title>
-  <!-- スマホアプリ化（PWA）用のメタタグ -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <style>
@@ -43,7 +42,7 @@
     input[type="text"] {
       flex-grow: 1;
       padding: 12px;
-      font-size: 16px; /* 16px以上にするとiOSでフォーカス時にズームしない */
+      font-size: 16px;
       border: 1px solid #ccc;
       border-radius: 8px;
     }
@@ -60,9 +59,10 @@
     .btn-add { background: #2196f3; color: white; white-space: nowrap; }
     .btn-mode { background: #ff9800; color: white; flex: 1; }
     .btn-reset { background: #9e9e9e; color: white; flex: 1; }
+    .btn-pass { background: #607d8b; color: white; }
     button:active { opacity: 0.7; }
 
-    /* カードグリッド（スマホ・タブレット自動調整） */
+    /* カードグリッド */
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -127,7 +127,6 @@
       display: block;
     }
     
-    /* スマホで押しやすい移動用ボタン */
     .move-btns {
       display: none;
       gap: 5px;
@@ -169,7 +168,7 @@
     <button class="btn-add" onclick="addTextCard()">登録</button>
   </div>
   <div class="btn-group">
-    <button id="mode-btn" class="btn-mode" onclick="toggleEditMode()">編集モード</button>
+    <button id="mode-btn" class="btn-mode" onclick="toggleEditMode()">🔒 編集モード</button>
     <button class="btn-reset" onclick="resetPreset()">初期状態に戻す</button>
   </div>
 </header>
@@ -179,9 +178,12 @@
     <input type="file" id="image-upload" accept="image/*" style="flex:1;">
     <button class="btn-add" onclick="addImageCard()">画像カード追加</button>
   </div>
-  <span style="font-size: 0.85rem; color: #e65100; font-weight: bold;">
-    💡 編集モード中：カード下の「←」「→」ボタンで並べ替えできます
-  </span>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <span style="font-size: 0.85rem; color: #e65100; font-weight: bold;">
+      💡 カード下の「←」「→」で並べ替えできます
+    </span>
+    <button class="btn-pass" onclick="changePassword()">パスワード変更</button>
+  </div>
 </div>
 
 <div class="grid" id="card-container"></div>
@@ -202,18 +204,24 @@
   let items = [];
   let isEditMode = false;
   let audioUnlocked = false;
+  let password = "1234"; // 初期パスワード
 
   function init() {
-    const saved = localStorage.getItem('aac_items_v3');
+    const saved = localStorage.getItem('aac_items_v4');
     if (saved) {
       items = JSON.parse(saved);
     } else {
       items = [...defaultItems];
       saveData();
     }
+
+    const savedPass = localStorage.getItem('aac_password');
+    if (savedPass) {
+      password = savedPass;
+    }
+
     render();
 
-    // iOS/Android向け：画面の初回タップで音声読み上げ機能を有効化
     document.addEventListener('touchstart', unlockAudio, { once: true });
     document.addEventListener('click', unlockAudio, { once: true });
   }
@@ -254,7 +262,6 @@
         iconDiv.innerHTML = item.icon;
       }
 
-      // 削除ボタン
       const deleteBtn = document.createElement('div');
       deleteBtn.className = 'delete-btn';
       deleteBtn.innerText = '×';
@@ -263,7 +270,6 @@
         deleteCard(index);
       };
 
-      // スマホ用並べ替えボタン（編集モード時に表示）
       const moveBtns = document.createElement('div');
       moveBtns.className = 'move-btns';
       
@@ -288,7 +294,6 @@
     });
   }
 
-  // カードの位置移動（並べ替え）
   function moveCard(index, direction) {
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= items.length) return;
@@ -352,32 +357,57 @@
     }
   }
 
+  // 編集モード切り替え（ロック機能付き）
   function toggleEditMode() {
-    isEditMode = !isEditMode;
     const body = document.body;
     const modeBtn = document.getElementById('mode-btn');
 
-    if (isEditMode) {
+    if (!isEditMode) {
+      // 編集モードに入る際のパスワード認証
+      const inputPass = prompt("パスワードを入力してください（初期値: 1234）");
+      if (inputPass === null) return; // キャンセル時
+      if (inputPass !== password) {
+        alert("パスワードが違います");
+        return;
+      }
+      
+      isEditMode = true;
       body.classList.add('edit-mode');
-      modeBtn.innerText = '編集終了';
+      modeBtn.innerText = '🔓 編集終了';
       modeBtn.style.backgroundColor = '#4caf50';
     } else {
+      // 編集モードの解除（認証不要）
+      isEditMode = false;
       body.classList.remove('edit-mode');
-      modeBtn.innerText = '編集モード';
+      modeBtn.innerText = '🔒 編集モード';
       modeBtn.style.backgroundColor = '#ff9800';
     }
     render();
   }
 
+  // パスワード変更
+  function changePassword() {
+    const newPass = prompt("新しいパスワード（半角英数）を入力してください");
+    if (newPass && newPass.trim() !== "") {
+      password = newPass.trim();
+      localStorage.setItem('aac_password', password);
+      alert("パスワードを変更しました");
+    }
+  }
+
   function saveData() {
-    localStorage.setItem('aac_items_v3', JSON.stringify(items));
+    localStorage.setItem('aac_items_v4', JSON.stringify(items));
   }
 
   function resetPreset() {
-    if (confirm('初期プリセットに戻しますか？')) {
-      items = [...defaultItems];
-      saveData();
-      render();
+    if (isEditMode) {
+      if (confirm('初期プリセットに戻しますか？')) {
+        items = [...defaultItems];
+        saveData();
+        render();
+      }
+    } else {
+      alert('初期状態に戻すには「編集モード」に入ってください');
     }
   }
 
